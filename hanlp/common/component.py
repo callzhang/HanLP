@@ -216,6 +216,7 @@ class KerasComponent(Component, ABC):
         for key, value in vocabs.items():
             vocab = Vocab()
             vocab.copy_from(value)
+            vocab.mutable = True
             setattr(self.transform, key, vocab)
 
     def load_transform(self, save_dir) -> Transform:
@@ -253,7 +254,7 @@ class KerasComponent(Component, ABC):
         self.transform.build_config()
         self.model = self.build_model(**merge_dict(self.config, training=kwargs.get('training', None),
                                                    loss=kwargs.get('loss', None)))
-        self.transform.lock_vocabs()
+        # self.transform.lock_vocabs()
         optimizer = self.build_optimizer(**self.config)
         loss = self.build_loss(
             **self.config if 'loss' in self.config else dict(list(self.config.items()) + [('loss', None)]))
