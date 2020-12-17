@@ -11,6 +11,9 @@ from bert.loader_albert import albert_params
 
 from hanlp.layers.transformers import zh_albert_models_google, bert_models_google
 from hanlp.utils.io_util import get_resource, stdout_redirected, hanlp_home
+gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+if len(gpu_devices)>0:
+    tf.config.experimental.set_memory_growth(gpu_devices[0], True)
 
 
 def build_transformer(transformer, max_seq_length, num_labels, tagging=True, tokenizer_only=False):
@@ -56,9 +59,9 @@ def build_transformer(transformer, max_seq_length, num_labels, tagging=True, tok
     else:
         bert_params = bert.params_from_pretrained_ckpt(bert_dir)
     l_bert = bert.BertModelLayer.from_params(bert_params, name='albert' if albert else "bert")
-    l_input_ids = tf.keras.layers.Input(shape=(max_seq_length,), dtype='int32', name="input_ids")
-    l_mask_ids = tf.keras.layers.Input(shape=(max_seq_length,), dtype='int32', name="mask_ids")
-    l_token_type_ids = tf.keras.layers.Input(shape=(max_seq_length,), dtype='int32', name="token_type_ids")
+    l_input_ids = tf.keras.layers.Input(shape=(max_seq_length,), dtype='int16', name="input_ids")
+    l_mask_ids = tf.keras.layers.Input(shape=(max_seq_length,), dtype='int16', name="mask_ids")
+    l_token_type_ids = tf.keras.layers.Input(shape=(max_seq_length,), dtype='int16', name="token_type_ids")
     output = l_bert([l_input_ids, l_token_type_ids], mask=l_mask_ids)
     if not tagging:
         output = tf.keras.layers.Lambda(lambda seq: seq[:, 0, :])(output)

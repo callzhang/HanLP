@@ -7,7 +7,7 @@ import math
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, List
-
+from tensorflow.keras.mixed_precision import experimental as mixed_precision
 import numpy as np
 import tensorflow as tf
 
@@ -329,6 +329,12 @@ class KerasComponent(Component, ABC):
         num_examples = self.build_vocab(trn_data, logger)
         # assert num_examples, 'You forgot to return the number of training examples in your build_vocab'
         logger.info('Building...')
+        # mixed precision
+        if self.config.use_amp:
+            policy = mixed_precision.Policy('mixed_float16')
+            mixed_precision.set_policy(policy)
+            print('Compute dtype: %s' % policy.compute_dtype)
+            print('Variable dtype: %s' % policy.variable_dtype)
         train_steps_per_epoch = math.ceil(num_examples / batch_size) if num_examples else None
         self.config.train_steps = train_steps_per_epoch * epochs if num_examples else None
         model, optimizer, loss, metrics = self.build(**merge_dict(self.config, logger=logger, training=True))
@@ -338,7 +344,7 @@ class KerasComponent(Component, ABC):
         self.save_meta(save_dir)
         trn_data = self.build_train_dataset(trn_data, batch_size, num_examples)
         dev_data = self.build_valid_dataset(dev_data, batch_size)
-        callbacks = self.build_callbacks(save_dir, logger, **self.config)
+        callbacks = self.build_callbacks(save_dir, **merge_dict(self.config, overwrite=True, logger=logger))
         # need to know #batches, otherwise progbar crashes
         dev_steps = math.ceil(size_of_dataset(dev_data) / batch_size)
         checkpoint = get_callback_by_class(callbacks, tf.keras.callbacks.ModelCheckpoint)
