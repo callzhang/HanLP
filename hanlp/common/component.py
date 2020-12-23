@@ -235,7 +235,7 @@ class KerasComponent(Component, ABC):
         self.save_config(save_dir)
         self.save_vocabs(save_dir)
         self.save_weights(save_dir)
-        self.model.save(save_dir)
+        # self.model.save(save_dir)
 
     def load(self, save_dir: str, logger=hanlp.utils.log_util.logger, **kwargs):
         save_dir = get_resource(save_dir)

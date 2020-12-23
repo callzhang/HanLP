@@ -9,8 +9,11 @@ import tensorflow as tf
 from bert import albert_models_tfhub, fetch_tfhub_albert_model, load_stock_weights
 from bert.loader_albert import albert_params
 
+from transformers import TFAutoModel, AutoTokenizer, AutoConfig, TFBertModel, BertTokenizer, BertModel, TFAutoModelForSequenceClassification
+
 from hanlp.layers.transformers import zh_albert_models_google, bert_models_google
 from hanlp.utils.io_util import get_resource, stdout_redirected, hanlp_home
+
 
 gpu_devices = tf.config.experimental.list_physical_devices('GPU')
 for gpu in gpu_devices:
@@ -18,6 +21,7 @@ for gpu in gpu_devices:
 
 
 def build_transformer(transformer, max_seq_length, num_labels, tagging=True, tokenizer_only=False):
+    return genModelwithHiddenStates(transformer, max_seq_length, num_labels, tagging=True, tokenizer_only=False) 
     spm_model_file = None
     if transformer in zh_albert_models_google:
         from bert.tokenization.albert_tokenization import FullTokenizer
@@ -88,3 +92,34 @@ def build_transformer(transformer, max_seq_length, num_labels, tagging=True, tok
             skipped_weight_value_tuples = bert.load_bert_weights(l_bert, ckpt)
     assert 0 == len(skipped_weight_value_tuples), f'failed to load pretrained {transformer}'
     return model, tokenizer
+
+
+def genModelwithHiddenStates(transformer, max_seq_length, num_labels, tagging=True, tokenizer_only=False, hidden_states_size=4):
+    # Import the needed model(Bert, Roberta or DistilBert) with output_hidden_states=True
+    transformer_model = TFAutoModel.from_pretrained(transformer, output_hidden_states=True)
+    tokenizer = AutoTokenizer.from_pretrained(transformer)
+
+    input_ids = tf.keras.Input(shape=(max_seq_length, ), dtype='int32', name='input_ids')
+    attention_mask = tf.keras.Input(shape=(max_seq_length, ), dtype='int32', name="mask_ids")
+    token_type_ids = tf.keras.layers.Input(shape=(max_seq_length,), dtype='int32', name="token_type_ids")
+
+    transformer = transformer_model([input_ids, attention_mask, token_type_ids])    
+    hidden_states = transformer[1] # get output_hidden_states
+    hiddes_states_ind = list(range(-hidden_states_size, 0, 1))
+
+    selected_hiddes_states = tf.keras.layers.concatenate(tuple([hidden_states[i] for i in hiddes_states_ind]))
+
+    # Now we can use selected_hiddes_states as we want
+    output = tf.keras.layers.Dense(max_seq_length, activation='relu')(selected_hiddes_states)
+    output = tf.keras.layers.Dense(num_labels, activation='sigmoid')(output)
+    model = tf.keras.models.Model(inputs = [input_ids, attention_mask, token_type_ids], outputs = output)
+    # model.compile(tf.keras.optimizers.Adam(lr=1e-4), loss='binary_crossentropy', metrics=['accuracy'])
+    return model, tokenizer
+
+def genModelClassifier(transformer, max_seq_length, num_labels, tagging=True, tokenizer_only=False):
+    transformer_model = TFAutoModelForSequenceClassification.from_pretrained(transformer, output_hidden_states=True)
+    tokenizer = AutoTokenizer.from_pretrained(transformer)
+    return transformer_model, tokenizer
+
+if __name__ == '__main__':
+    model, tokenizer = genModelwithHiddenStates('hfl/chinese-electra-180g-base-discriminator', max_seq_length=256, num_labels=2)
